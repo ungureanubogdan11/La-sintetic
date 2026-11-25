@@ -1,0 +1,109 @@
+name: la-sintetic
+
+services:
+  reverse-proxy:
+    image: traefik:v3.6
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql
+    command: ["postgres", "-c", "log_statement=none"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: migrate/migrate:v4.18.3
+    volumes:
+      - ./src/migrations:/migrations:ro
+    # Connection flags live in the entrypoint so other commands can be run ad hoc,
+    # e.g. `docker compose run --rm migrate down 1` or `... migrate version`.
+    entrypoint:
+      - "migrate"
+      - "-path=/migrations"
+      - "-database=postgres://${PG_USER}:${PG_PASSWORD}@postgres:5432/${PG_DB}?sslmode=disable"
+    command: ["up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./src
+    image: la-sintetic-api
+    expose:
+      - "8080"
+    env_file:
+      - .env
+    environment:
+      ENV: dev
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PORT: "8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+          ignore:
+            - migrations/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      reverse-proxy:
+        condition: service_started
+
+  web:
+    build:
+      context: ./src-client
+    image: la-sintetic-web
+    expose:
+      - "5173"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`localhost`) && PathPrefix(`/`)"
+      - "traefik.http.routers.web.entrypoints=web"
+      - "traefik.http.services.web.loadbalancer.server.port=5173"
+    develop:
+      watch:
+        - action: sync
+          path: ./src-client
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./src-client/package.json
+        - action: rebuild
+          path: ./src-client/package-lock.json
+    depends_on:
+      - reverse-proxy
+
+volumes:
+  pg_data:

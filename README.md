@@ -33,3 +33,30 @@ Organizatorul este membrul care a creat meciul. Drepturile sale de organizare se
 ## Exemplu pentru demonstrație
 
 La un meci de 5 contra 5, ambele locuri de portar sunt ocupate și mai există un loc de câmp. Un al treilea portar intră în așteptare, în timp ce un jucător de câmp se poate înscrie imediat. Dacă unul dintre portarii confirmați se retrage, aplicația promovează automat portarul din așteptare. Pentru un teren de 300 de lei și zece participanți confirmați, contribuția estimată este de 30 de lei de persoană.
+
+## Rulare locală
+
+Necesită Docker Engine cu pluginul Compose v2 (≥ 2.22, pentru `--watch`). Pe Windows se poate folosi Docker Engine instalat în WSL2.
+
+```bash
+cp .env.example .env
+docker compose up --build --watch   # --watch: rebuild API la modificări în src/, sync + HMR pentru src-client/
+```
+
+### Structura backend (`src/`)
+
+```
+src/
+├─ cmd/api/            punctul de intrare: config → DB → repositories → services → handlers
+├─ internal/
+│  ├─ config/          variabile de mediu
+│  ├─ database/        conexiunea GORM la PostgreSQL
+│  ├─ handlers/        controllere HTTP (Gin)
+│  ├─ services/        logica de business
+│  ├─ repositories/    acces la date
+│  ├─ models/          entități GORM
+│  ├─ middleware/      recovery, autentificare JWT, RBAC
+│  ├─ apperror/        erori de domeniu (independente de HTTP)
+│  └─ httpx/           răspunsuri JSON standardizate
+└─ migrations/         scripturi golang-migrate
+```

@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS users;
+DROP TYPE IF EXISTS player_position;
+DROP TYPE IF EXISTS user_role;

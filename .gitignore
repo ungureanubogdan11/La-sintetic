@@ -1,0 +1,16 @@
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Go
+src/bin/
+*.exe
+*.test
+*.out
+
+# Node
+node_modules/
+dist/

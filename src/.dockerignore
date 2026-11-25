@@ -1,0 +1,6 @@
+bin/
+migrations/
+*.md
+.env
+Dockerfile
+.dockerignore
